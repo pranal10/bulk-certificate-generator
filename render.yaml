@@ -1,0 +1,18 @@
+# One-click deployment on Render (https://render.com): New + > Blueprint, pick this repo.
+# The free plan has an ephemeral disk, so the SQLite file and generated PDFs are
+# reset whenever the service restarts or redeploys - fine for a demo.
+services:
+  - type: web
+    name: bulk-certificate-generator
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.8"
+      - key: WORKER_THREADS
+        value: "2"
+      - key: ORGANIZATION_NAME
+        value: "Acme Learning Institute"

@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 
 from app.api import router
 from app.config import Settings, get_settings
@@ -17,6 +18,8 @@ from app.processing import (
 )
 
 logger = logging.getLogger(__name__)
+
+DEMO_PAGE = Path(__file__).parent / "static" / "index.html"
 
 DESCRIPTION = """
 Submit a list of recipients once, get a **job id** back immediately, poll the job
@@ -75,6 +78,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/health", tags=["meta"], summary="Liveness check")
     def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    # A small built-in UI for trying the API by hand (see README "Demo UI").
+    @app.get("/", include_in_schema=False)
+    def demo_page() -> FileResponse:
+        return FileResponse(DEMO_PAGE, media_type="text/html")
 
     return app
 

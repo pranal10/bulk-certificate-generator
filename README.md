@@ -4,6 +4,8 @@ A backend API that takes a list of recipients in one request, generates a PDF ce
 
 Built with **Python 3.10+ · FastAPI · SQLAlchemy 2 (SQLite by default) · reportlab · pytest**.
 
+**Live demo:** <https://bulk-certificate-generator.onrender.com> — paste a few recipients, hit *Generate certificates*, and watch the job run. (Free hosting: the first request after a quiet period takes up to a minute while the service wakes up.) The same page is served at `/` when you run the project locally; the REST API is documented at `/docs`.
+
 ```
 POST /jobs ──▶ 202 { job_id, status: "pending" }
                       │
@@ -20,6 +22,8 @@ GET /jobs/{job_id}/download                     ──▶ all PDFs as a ZIP
 
 - [Setup](#setup)
 - [Running the application](#running-the-application)
+- [Demo UI](#demo-ui)
+- [Deploying](#deploying)
 - [Running the tests](#running-the-tests)
 - [API: submitting a job](#api-submitting-a-job)
 - [API: tracking progress](#api-tracking-progress)
@@ -63,6 +67,27 @@ docker build -t certgen .
 docker run -p 8000:8000 -v "$PWD/data:/srv/data" certgen
 ```
 
+## Demo UI
+
+Open <http://127.0.0.1:8000/> after starting the server. It is a single static page (`app/static/index.html`, no build step, no framework) that talks to the same API documented below:
+
+- paste recipients as `name, email` lines (a sample with one deliberately broken row is pre-filled; *Use 300 sample recipients* fills in a bulk list),
+- submit, then watch the job go `pending → processing → completed` with the progress bar and per-recipient results updating every half second,
+- download any generated PDF, or the whole job as a ZIP,
+- expand *Raw API response* to see the exact JSON the status endpoint returns, and re-open earlier jobs from the list under the form.
+
+The page exists so the behaviour is easy to show; everything it does is a plain `fetch` against `/jobs` and `/certificates`.
+
+## Deploying
+
+The repo includes a [`render.yaml`](render.yaml) blueprint, so it deploys to [Render](https://render.com) in one click:
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/pranal10/bulk-certificate-generator)
+
+Render installs `requirements.txt`, starts `uvicorn app.main:app --host 0.0.0.0 --port $PORT`, and checks `/health`. Two things to know about the free plan: the service sleeps after ~15 minutes without traffic (the next request takes up to a minute), and the disk is ephemeral, so the SQLite file and generated PDFs are reset on each deploy or restart. For anything beyond a demo, set `DATABASE_URL` to a managed Postgres and attach a persistent disk (or object storage) for `CERTIFICATES_DIR`.
+
+Any platform that runs a container works too: the `Dockerfile` listens on `$PORT` when it is set (Railway, Fly.io, Cloud Run) and on 8000 otherwise.
+
 ## Running the tests
 
 ```bash
@@ -70,7 +95,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-The suite (71 tests, ~3 s) runs against a throw-away SQLite file and temp folder per test, with jobs processed synchronously so results are deterministic. One test exercises the real thread-pool queue. Coverage by file:
+The suite (73 tests, ~3 s) runs against a throw-away SQLite file and temp folder per test, with jobs processed synchronously so results are deterministic. One test exercises the real thread-pool queue. Coverage by file:
 
 | File | What it covers |
 |---|---|
@@ -80,6 +105,7 @@ The suite (71 tests, ~3 s) runs against a throw-away SQLite file and temp folder
 | `tests/test_job_status.py` | pending → processing → completed, per-certificate progress, idempotent re-processing, background queue, restart recovery |
 | `tests/test_failure_handling.py` | a render failure for one recipient leaves the others untouched, error reporting, crash mid-write, ZIP skips failures |
 | `tests/test_retrieval.py` | listing/filtering/paginating certificates, PDF download, ZIP download, 404/409 cases |
+| `tests/test_demo_page.py` | the demo page is served at `/` and stays out of the OpenAPI schema |
 
 ## API: submitting a job
 
@@ -287,11 +313,13 @@ app/
   models.py        SQLAlchemy models: Job, Certificate
   processing.py    JobProcessor (renders + records outcomes), queues, startup recovery
   certificates.py  the PDF template (reportlab)
+  static/index.html  the demo UI served at /
   database.py      engine/session helpers, UTC datetime type
   config.py        settings from environment
   dependencies.py  FastAPI dependencies (db session, settings, queue)
 tests/             pytest suite (see "Running the tests")
 examples/          sample_request.json
+render.yaml        one-click Render deployment (see "Deploying")
 ```
 
 ## Limitations and next steps

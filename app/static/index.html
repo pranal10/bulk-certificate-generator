@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bulk Certificate Generator</title>
+  <meta name="description" content="Paste a list of recipients, generate a PDF certificate for each one, and track every result.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #1f2a44;
+      --ink-soft: #3b4660;
+      --slate: #5f6673;
+      --mist: #e3e6eb;
+      --canvas: #f4f5f7;
+      --paper: #ffffff;
+      --gold: #c9a227;
+      --gold-deep: #a8861b;
+      --green: #1e7f4f;
+      --green-soft: #e4f3ea;
+      --red: #b42318;
+      --red-soft: #fbe9e7;
+      --radius: 6px;
+      --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+      --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 15px;
+      line-height: 1.5;
+    }
+    a { color: var(--ink); }
+    a:hover { color: var(--gold-deep); }
+    button, input, textarea { font: inherit; color: inherit; }
+    :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+    .page { max-width: 1120px; margin: 0 auto; padding: 32px 16px 56px; }
+
+    header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; margin-bottom: 24px; }
+    header h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; }
+    header p { margin: 0; color: var(--slate); max-width: 56ch; }
+    header nav { display: flex; gap: 20px; font-size: 14px; }
+
+    .grid { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: 20px; align-items: start; }
+    @media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+
+    .panel { background: var(--paper); border: 1px solid var(--mist); border-radius: var(--radius); padding: 20px; }
+    .panel h2 { font-size: 16px; font-weight: 600; margin: 0 0 14px; }
+
+    label { display: block; font-size: 14px; font-weight: 500; margin: 12px 0 6px; }
+    label:first-of-type { margin-top: 0; }
+    .hint { font-size: 13px; color: var(--slate); margin: 6px 0 0; }
+    input[type="text"], input[type="date"], textarea {
+      width: 100%; padding: 9px 11px; border: 1px solid var(--mist); border-radius: var(--radius); background: var(--paper);
+    }
+    textarea { min-height: 184px; resize: vertical; font-family: var(--mono); font-size: 13px; line-height: 1.55; }
+    input:focus, textarea:focus { border-color: var(--ink-soft); outline: none; box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.25); }
+
+    .row { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; margin-top: 16px; }
+    .btn {
+      border: 1px solid var(--ink); background: var(--ink); color: #fff; border-radius: var(--radius);
+      padding: 9px 16px; font-weight: 500; cursor: pointer;
+    }
+    .btn:hover { background: var(--ink-soft); }
+    .btn:disabled { opacity: 0.55; cursor: default; }
+    .btn.secondary { background: var(--paper); color: var(--ink); border-color: var(--mist); }
+    .btn.secondary:hover { border-color: var(--ink-soft); background: var(--paper); }
+    .linklike { background: none; border: none; padding: 0; color: var(--slate); text-decoration: underline; cursor: pointer; font-size: 13px; }
+    .linklike:hover { color: var(--gold-deep); }
+
+    .error { margin-top: 14px; padding: 10px 12px; border-radius: var(--radius); background: var(--red-soft); color: var(--red); font-size: 14px; white-space: pre-wrap; }
+    .error:empty { display: none; }
+
+    /* Job panel */
+    .job-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px 16px; }
+    .job-head h2 { margin: 0; }
+    .job-id { font-family: var(--mono); font-size: 12px; color: var(--slate); }
+    .status { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 500; }
+    .status::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--slate); }
+    .status.processing::before, .status.pending::before { background: var(--gold); animation: pulse 1.1s ease-in-out infinite; }
+    .status.completed::before { background: var(--green); }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+    @media (prefers-reduced-motion: reduce) { .status::before { animation: none; } .bar span { transition: none; } }
+
+    .bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--mist); margin: 16px 0 8px; }
+    .bar span { display: block; height: 100%; transition: width 0.25s ease; }
+    .bar .done { background: var(--gold); }
+    .bar .bad { background: var(--red); }
+    .counts { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--slate); }
+    .counts strong { color: var(--ink); font-weight: 600; }
+
+    .empty { color: var(--slate); padding: 36px 0; text-align: center; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 14px; }
+    th { text-align: left; font-weight: 500; color: var(--slate); font-size: 13px; padding: 0 8px 8px 0; border-bottom: 1px solid var(--mist); }
+    td { padding: 8px 8px 8px 0; border-bottom: 1px solid var(--mist); vertical-align: top; }
+    td.n { color: var(--slate); font-family: var(--mono); font-size: 12px; width: 34px; }
+    td.email { font-family: var(--mono); font-size: 12.5px; color: var(--ink-soft); overflow-wrap: anywhere; }
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12.5px; font-weight: 500; white-space: nowrap; }
+    .tag.generated { background: var(--green-soft); color: var(--green); }
+    .tag.failed { background: var(--red-soft); color: var(--red); }
+    .tag.pending { background: var(--canvas); color: var(--slate); }
+    .reason { display: block; color: var(--red); font-size: 12.5px; margin-top: 3px; }
+    .muted { color: var(--slate); }
+    .table-wrap { max-height: 520px; overflow: auto; }
+    @media (max-width: 600px) { .hide-sm { display: none; } }
+
+    details { margin-top: 18px; }
+    summary { cursor: pointer; font-size: 14px; color: var(--slate); }
+    pre { font-family: var(--mono); font-size: 12.5px; line-height: 1.5; background: var(--canvas); padding: 12px; border-radius: var(--radius); overflow: auto; max-height: 320px; margin: 10px 0 0; }
+
+    .history { margin-top: 20px; }
+    .history ul { list-style: none; padding: 0; margin: 0; }
+    .history li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--mist); font-size: 14px; }
+    .history li:first-child { border-top: 0; }
+    .history button { background: none; border: 0; padding: 0; text-align: left; cursor: pointer; font-weight: 500; }
+    .history button:hover { color: var(--gold-deep); }
+    .history .meta { color: var(--slate); font-size: 13px; white-space: nowrap; }
+  </style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div>
+      <h1>Bulk Certificate Generator</h1>
+      <p>Paste a list of recipients, generate a PDF certificate for each one, and track every result.</p>
+    </div>
+    <nav>
+      <a href="/docs">API docs</a>
+      <a href="https://github.com/pranal10/bulk-certificate-generator">Source on GitHub</a>
+    </nav>
+  </header>
+
+  <div class="grid">
+    <section class="panel">
+      <h2>New job</h2>
+      <form id="job-form">
+        <label for="event">Event name</label>
+        <input id="event" type="text" value="Python Bootcamp 2026" required maxlength="200">
+
+        <label for="date">Issue date</label>
+        <input id="date" type="date">
+
+        <label for="recipients">Recipients</label>
+        <textarea id="recipients" spellcheck="false"></textarea>
+        <p class="hint">One per line as <code>name, email</code>. The sample includes a deliberately broken line, so you can see how a bad row is reported without stopping the others.</p>
+
+        <div class="row">
+          <button class="btn" type="submit" id="submit">Generate certificates</button>
+          <button class="linklike" type="button" id="bulk">Use 300 sample recipients</button>
+          <button class="linklike" type="button" id="reset">Reset sample</button>
+        </div>
+        <div class="error" id="form-error"></div>
+      </form>
+
+      <div class="history" id="history" hidden>
+        <h2>Earlier jobs</h2>
+        <ul id="history-list"></ul>
+      </div>
+    </section>
+
+    <section class="panel" id="job-panel">
+      <div class="job-head">
+        <h2>Job</h2>
+        <span class="job-id" id="job-id"></span>
+      </div>
+      <div id="job-empty" class="empty">Submit a job and its progress shows up here.</div>
+      <div id="job-body" hidden>
+        <div class="row" style="margin-top:10px; justify-content: space-between;">
+          <span class="status" id="job-status"></span>
+          <a class="btn secondary" id="zip" href="#" hidden>Download all as ZIP</a>
+        </div>
+        <div class="bar"><span class="done" id="bar-done"></span><span class="bad" id="bar-bad"></span></div>
+        <div class="counts" id="counts"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Name</th><th class="hide-sm">Email</th><th>Result</th><th></th></tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+        <details>
+          <summary>Raw API response (GET /jobs/{id})</summary>
+          <pre id="raw"></pre>
+        </details>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const SAMPLE = [
+    "Pranal Bhatnagar, pranal@example.com",
+    "Priya Sharma, priya@example.com",
+    "Rohan Mehta, rohan@example.com",
+    ", not-an-email",
+  ].join("\n");
+  const FIRST = ["Aarav","Ananya","Vihaan","Diya","Arjun","Ishita","Kabir","Meera","Reyansh","Saanvi","Aditya","Kiara","Dev","Navya","Rahul","Pooja","Karan","Sneha","Nikhil","Tanvi"];
+  const LAST = ["Sharma","Verma","Iyer","Reddy","Nair","Patel","Singh","Gupta","Das","Khan","Joshi","Menon","Bose","Rao","Kulkarni"];
+
+  const state = { jobId: null, timer: null };
+
+  function todayISO() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  function parseRecipients(text) {
+    return text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map((line) => {
+      const parts = line.split(/\s*[,\t;]\s*/);
+      if (parts.length === 1) {
+        return parts[0].includes("@") ? { name: "", email: parts[0] } : { name: parts[0], email: "" };
+      }
+      return { name: parts[0], email: parts[1] };
+    });
+  }
+
+  function formatDetail(detail) {
+    if (Array.isArray(detail)) {
+      return detail.map((e) => `${(e.loc || []).slice(1).join(".") || "request"}: ${e.msg}`).join("\n");
+    }
+    return typeof detail === "string" ? detail : JSON.stringify(detail);
+  }
+
+  async function api(path, options) {
+    const res = await fetch(path, options);
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(formatDetail(body.detail) || `${res.status} ${res.statusText}`);
+    return body;
+  }
+
+  // ---------------------------------------------------------------- submit
+
+  $("job-form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    $("form-error").textContent = "";
+    const recipients = parseRecipients($("recipients").value);
+    if (!recipients.length) {
+      $("form-error").textContent = "Add at least one recipient line.";
+      return;
+    }
+    const payload = { event_name: $("event").value, recipients };
+    if ($("date").value) payload.issue_date = $("date").value;
+
+    $("submit").disabled = true;
+    try {
+      const job = await api("/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      watch(job.id);
+    } catch (err) {
+      $("form-error").textContent = err.message;
+    } finally {
+      $("submit").disabled = false;
+    }
+  });
+
+  $("bulk").addEventListener("click", () => {
+    const lines = [];
+    for (let i = 0; i < 300; i++) {
+      const name = `${FIRST[i % FIRST.length]} ${LAST[(i * 7 + Math.floor(i / FIRST.length)) % LAST.length]}`;
+      lines.push(`${name}, ${name.toLowerCase().replace(" ", ".")}${i}@example.com`);
+    }
+    lines.splice(42, 0, ", missing-name@example.com");
+    lines.splice(118, 0, "Broken Email, not-an-email");
+    $("recipients").value = lines.join("\n");
+  });
+
+  $("reset").addEventListener("click", () => { $("recipients").value = SAMPLE; });
+
+  // ---------------------------------------------------------------- job view
+
+  function watch(jobId) {
+    clearTimeout(state.timer);
+    state.jobId = jobId;
+    $("job-empty").hidden = true;
+    $("job-body").hidden = false;
+    $("job-id").textContent = jobId;
+    if (window.innerWidth <= 860) {
+      $("job-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    refresh();
+  }
+
+  async function refresh() {
+    const jobId = state.jobId;
+    try {
+      const job = await api(`/jobs/${jobId}`);
+      const certs = await api(`/jobs/${jobId}/certificates?limit=1000`);
+      if (jobId !== state.jobId) return; // user switched jobs meanwhile
+      renderJob(job);
+      renderRows(certs.items);
+      if (job.status !== "completed") {
+        state.timer = setTimeout(refresh, 500);
+      } else {
+        loadHistory();
+      }
+    } catch (err) {
+      $("counts").textContent = `Could not load job: ${err.message}`;
+    }
+  }
+
+  function renderJob(job) {
+    const p = job.progress;
+    const status = $("job-status");
+    status.textContent = job.status === "completed" ? "Completed" : job.status === "processing" ? "Generating" : "Queued";
+    status.className = `status ${job.status}`;
+
+    $("bar-done").style.width = p.total ? `${(p.generated / p.total) * 100}%` : "0%";
+    $("bar-bad").style.width = p.total ? `${(p.failed / p.total) * 100}%` : "0%";
+    $("counts").innerHTML =
+      `<span><strong>${p.generated}</strong> generated</span>` +
+      `<span><strong>${p.failed}</strong> failed</span>` +
+      `<span><strong>${p.pending}</strong> pending</span>` +
+      `<span><strong>${p.total}</strong> total</span>`;
+
+    const zip = $("zip");
+    zip.hidden = !(job.status === "completed" && p.generated > 0);
+    zip.href = `/jobs/${job.id}/download`;
+    $("raw").textContent = JSON.stringify(job, null, 2);
+  }
+
+  function esc(s) {
+    return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  function renderRows(items) {
+    const label = { generated: "Generated", failed: "Failed", pending: "Pending" };
+    $("rows").innerHTML = items.map((c) => `
+      <tr>
+        <td class="n">${c.position + 1}</td>
+        <td>${c.recipient_name ? esc(c.recipient_name) : '<span class="muted">(no name)</span>'}</td>
+        <td class="email hide-sm">${esc(c.recipient_email || "")}</td>
+        <td><span class="tag ${c.status}">${label[c.status] || c.status}</span>${c.error ? `<span class="reason">${esc(c.error)}</span>` : ""}</td>
+        <td>${c.download_url ? `<a href="${c.download_url}">PDF</a>` : ""}</td>
+      </tr>`).join("");
+  }
+
+  // ---------------------------------------------------------------- history
+
+  async function loadHistory() {
+    try {
+      const data = await api("/jobs?limit=6");
+      const items = data.items.filter((j) => j.id !== state.jobId);
+      $("history").hidden = items.length === 0;
+      $("history-list").innerHTML = items.map((j) => `
+        <li>
+          <button type="button" data-id="${j.id}">${esc(j.event_name)}</button>
+          <span class="meta">${j.progress.generated}/${j.progress.total} generated · ${j.issue_date}</span>
+        </li>`).join("");
+      $("history-list").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => watch(b.dataset.id)));
+    } catch (_) { /* history is a convenience; ignore failures */ }
+  }
+
+  // ---------------------------------------------------------------- init
+
+  $("date").value = todayISO();
+  $("recipients").value = SAMPLE;
+  loadHistory();
+})();
+</script>
+</body>
+</html>
