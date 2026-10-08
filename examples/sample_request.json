@@ -1,0 +1,10 @@
+{
+  "event_name": "Python Bootcamp 2026",
+  "issue_date": "2026-10-08",
+  "recipients": [
+    { "name": "Pranal Bhatnagar", "email": "pranal@example.com" },
+    { "name": "Priya Sharma", "email": "priya@example.com" },
+    { "name": "Rohan Mehta", "email": "rohan@example.com" },
+    { "name": "", "email": "not-an-email" }
+  ]
+}
