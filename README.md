@@ -4,7 +4,7 @@ A backend API that takes a list of recipients in one request, generates a PDF ce
 
 Built with **Python 3.10+ · FastAPI · SQLAlchemy 2 (SQLite by default) · reportlab · pytest**.
 
-**Live demo:** <https://bulk-certificate-generator.onrender.com> — paste a few recipients, hit *Generate certificates*, and watch the job run. (Free hosting: the first request after a quiet period takes up to a minute while the service wakes up.) The same page is served at `/` when you run the project locally; the REST API is documented at `/docs`.
+**Live demo:** <bulk-certificate-generator-9vhr.onrender.com> — paste a few recipients, hit *Generate certificates*, and watch the job run. (Free hosting: the first request after a quiet period takes up to a minute while the service wakes up.) The same page is served at `/` when you run the project locally; the REST API is documented at `/docs`.
 
 ```
 POST /jobs ──▶ 202 { job_id, status: "pending" }
